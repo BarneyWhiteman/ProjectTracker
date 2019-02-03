@@ -11,7 +11,8 @@ DATABASE = "data/Projects.db"
 
 PROJECT_SQL =   """CREATE TABLE IF NOT EXISTS Projects (
                     id Integer PRIMARY KEY NOT NULL,
-                    name text NOT NULL
+                    name text NOT NULL,
+                    active bit NOT NULL
                 );"""
 
 PROGRAM_SQL =   """CREATE TABLE IF NOT EXISTS Programs (
@@ -48,38 +49,56 @@ def setUpDatabase():
         createTable(conn, PROGRAM_SQL)
     return conn
 
-def addProject(db, projectName):
-    try:
-        sql = "INSERT INTO Projects(name) VALUES(?)"
-
+def addProject(projectName):
+    db = createConnection()
+    with db:
         cursor = db.cursor()
+        try:
+            sql = "INSERT INTO Projects(name, active) VALUES(?, 0)"
+            cursor.execute("SELECT * FROM Projects WHERE name=?", (projectName, ))
+            if(len(cursor.fetchall()) == 0):
+                cursor.execute(sql, (projectName,))
+            else:
+                print("Project already exists")
+            
+        except Error as e:
+            print(e)
+        return cursor.lastrowid
 
-        cursor.execute("SELECT * FROM Projects WHERE name=?", (projectName, ))
-        if(len(cursor.fetchall()) == 0):
-            cursor.execute(sql, (projectName,))
-        else:
-            print("Project already exists")
-        
-    except Error as e:
-        print(e)
-    return cursor.lastrowid
-
-def addProgram(db, programName, projectName):
-    try:
-        sql = "INSERT INTO Programs(name, mins, projectID) VALUES(?, ?, ?)"
-
+def addProgram(programName, projectName):
+    db = createConnection()
+    with db:
         cursor = db.cursor()
+        try:
+            sql = "INSERT INTO Programs(name, mins, projectID) VALUES(?, ?, ?)"
 
-        cursor.execute("SELECT * FROM Programs WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
-        if(len(cursor.fetchall()) == 0):
-            cursor.execute(sql, (programName, 0, getProjectID(projectName)))
+            cursor.execute("SELECT * FROM Programs WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
+            if(len(cursor.fetchall()) == 0):
+                cursor.execute(sql, (programName, 0, getProjectID(projectName)))
+            else:
+                print("Program already exists in Project")
+
+        except Error as e:
+            print(e)
+        return cursor.lastrowid
+
+def changeActiveProject(projectName):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        cursor.execute("UPDATE Projects SET active=0 WHERE active=1")
+        cursor.execute("UPDATE Projects SET active=1 WHERE name=?", (projectName,))
+
+def getActiveProjectName():
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        cursor.execute("SELECT name FROM Projects WHERE active=1")
+        row = cursor.fetchone()
+        if(row == None):
+            return None
         else:
-            print("Program already exists in Project")
-
-    except Error as e:
-        print(e)
-    return cursor.lastrowid
-
+            return row[0]
 
 def getProjectID(projectName):
     db = createConnection()
@@ -100,10 +119,11 @@ def updateProgram(projectName, programName, mins):
         cursor.execute(sql, (mins, programName, getProjectID(projectName)))
 
 def setUpTables():
-    db = setUpDatabase()
-    with db:
-        addProject(db, "ProjectTracker")
-        addProgram(db, "VSCode", "ProjectTracker")
+    addProject("ProjectTracker")
+    addProgram("VSCode", "ProjectTracker")
+    
+    addProject("Unexpected Orcs")
+    addProgram("IntelliJ", "Unexpected Orcs")
 
 def getProjectNames():
     db = createConnection()
