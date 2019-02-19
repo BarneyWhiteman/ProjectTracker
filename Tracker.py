@@ -21,6 +21,10 @@ currentWindow = ""
 currentProject = ""
 currentWindowTimer = 0
 
+trayIcon = None
+window = None
+app = None
+
 #App
 class MainWindow(QWidget):
     def __init__(self):
@@ -30,7 +34,7 @@ class MainWindow(QWidget):
     def initUI(self):
         self.resize(720, 480)
         self.setWindowTitle("Project Tracker")
-        #self.setWindowIcon(QIcon("icon.png"))
+        self.setWindowIcon(QIcon("./assets/icon.png"))
         layout = QHBoxLayout()
 
         #PROJECT SELECT BOX
@@ -57,6 +61,12 @@ class MainWindow(QWidget):
 
         layout.addWidget(self.programTable)
 
+        #TABLE REFRESH BUTTON
+        self.refresh = QPushButton("Refresh")
+        self.refresh.pressed.connect(self.populateProgramTable)
+
+        layout.addWidget(self.refresh)
+
         self.setLayout(layout)
 
     def selectionChange(self, i):
@@ -71,15 +81,14 @@ class MainWindow(QWidget):
     
     def populateProgramTable(self):
         programs = DB.getProgramNames(DB.getActiveProjectName())
+        mins = DB.getProgramMinutes(DB.getActiveProjectName())
 
         self.programTable.setRowCount(len(programs))
         self.programTable.setColumnCount(2)
 
         for i in range(len(programs)):
-            self.programTable.setItem(0, i, QTableWidgetItem(programs[i]))
-            self.programTable.setItem(1, i, QTableWidgetItem(4))
-
-
+            self.programTable.setItem(i, 0, QTableWidgetItem(programs[i]))
+            self.programTable.setItem(i, 1, QTableWidgetItem(str(mins[i])))
 
 
 #Database Setup
@@ -88,13 +97,22 @@ DB.setUpTables()
 
 
 
+def initSystemTray(app):
+    global trayIcon
+    trayIcon = QSystemTrayIcon(QIcon("./assets/icon.png"), app)
+    trayIcon.messageClicked.connect(trayMessageClicked)
+    trayIcon.show()
+
 def getActiveWindowName():
     #Gets and returns the name of the currently active window
     return w.GetWindowText(w.GetForegroundWindow())
 
 def getActiveWindowType():
     #Clips the active window name into a usable program name
-    name = getActiveWindowName()
+    return getWindowType(getActiveWindowName())
+
+def getWindowType(name):
+    #Clips the active window name into a usable program name
     idx = name.rfind("- ")
     if(idx == -1):
         idx = 0
@@ -112,8 +130,14 @@ def getActiveWindow():
 
 def main():
     global running
+    global trayIcon
+    global window
+    global app
 
     currentProject = DB.getActiveProjectName()
+
+    if(currentProject != None):
+        print("Current Project: " + currentProject)
 
     print("Database:")
     for project in DB.getProjectNames():
@@ -127,10 +151,23 @@ def main():
     app = QApplication([])
     window = MainWindow()
     window.show()
+
+    initSystemTray(app)
+    
     app.exec_()
+
+
     while running:
         window.show()
-    
+
+def displayNotification(title, message):
+    global trayIcon
+    trayIcon.showMessage(title, message, QIcon("./assets/icon.png"))
+
+def trayMessageClicked():
+    print("Adding " + currentWindow + " to " + currentProject)
+    DB.addProgram(currentWindow, currentProject)
+    window.populateProgramTable()
 
 def programUpdate():
     #Function runs on a thread, constantly updates the number of seconds in the current project
@@ -147,10 +184,10 @@ def programUpdate():
             if(not(currentWindow == prevWindow)):
                 DB.updateProgram(currentProject, prevWindow, currentWindowTimer/60)
                 currentWindowTimer = 0
-                if(not DB.checkProgamInProject(currentWindow, currentProject)):
+                if(not DB.checkProgamInProject(currentWindow, currentProject) and currentWindow != "New notification"):
                     #Current program being used is not in the current project
                     #draw pop-up to add it
-                    print("Would you like to add " + currentWindow + " to your " + currentProject + " project?")
+                    displayNotification("Add " + currentWindow + " to " + currentProject + "?", "Would you like to start tracking " + currentWindow + " in your \"" + currentProject + "\" project?")
             print(currentProject, currentWindow)
             time.sleep(1)
             currentWindowTimer += 1

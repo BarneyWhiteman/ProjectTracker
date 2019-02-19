@@ -144,6 +144,13 @@ def getProgramNames(projectName):
         cursor.execute("SELECT name FROM Programs WHERE projectID=?", (getProjectID(projectName), ))
         return tupleToArray(cursor.fetchall())
 
+def getProgramMinutes(projectName):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        cursor.execute("SELECT mins FROM Programs WHERE projectID=?", (getProjectID(projectName), ))
+        return tupleToArray(cursor.fetchall())
+
 def checkProgamInProject(program, project):
     db = createConnection()
     with db:
