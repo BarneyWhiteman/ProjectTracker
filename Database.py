@@ -18,7 +18,7 @@ PROJECT_SQL =   """CREATE TABLE IF NOT EXISTS Projects (
 PROGRAM_SQL =   """CREATE TABLE IF NOT EXISTS Programs (
                     id Integer PRIMARY KEY NOT NULL,
                     name text NOT NULL,
-                    mins Integer,
+                    mins Decimal,
                     projectID Integer NOT NULL,
                     FOREIGN KEY (projectID) REFERENCES Projects(id)
                 );"""
@@ -107,23 +107,28 @@ def getProjectID(projectName):
         cursor.execute("SELECT id FROM Projects WHERE name=?", (projectName,))
 
         row = cursor.fetchone()
+        if(row == None):
+            return row
         return row[0]
 
 def updateProgram(projectName, programName, mins):
     db = createConnection()
     with db:
-        
-        sql = "UPDATE Programs SET mins = mins + ? WHERE name = ? AND projectID = ?"
-
         cursor = db.cursor()
-        cursor.execute(sql, (mins, programName, getProjectID(projectName)))
+        
+        sql = "SELECT id FROM Programs WHERE name = ? AND projectID = ?"
+        cursor.execute(sql, (programName, getProjectID(projectName)))
+        row = cursor.fetchone()
+        if(row != None):
+            sql = "UPDATE Programs SET mins = mins + ? WHERE name = ? AND projectID = ?"
+            cursor.execute(sql, (mins, programName, getProjectID(projectName)))
 
 def setUpTables():
     addProject("ProjectTracker")
-    addProgram("VSCode", "ProjectTracker")
+    addProgram("Visual Studio Code", "ProjectTracker")
     
     addProject("Unexpected Orcs")
-    addProgram("IntelliJ", "Unexpected Orcs")
+    addProgram("IntelliJ IDEA", "Unexpected Orcs")
 
 def getProjectNames():
     db = createConnection()
@@ -138,6 +143,14 @@ def getProgramNames(projectName):
         cursor = db.cursor()
         cursor.execute("SELECT name FROM Programs WHERE projectID=?", (getProjectID(projectName), ))
         return tupleToArray(cursor.fetchall())
+
+def checkProgamInProject(program, project):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        cursor.execute("SELECT name FROM Programs WHERE name = ? AND projectID=?", (program, getProjectID(project)))
+        row = cursor.fetchall()
+        return len(row) > 0 
 
 def tupleToArray(tup):
     arr = []
