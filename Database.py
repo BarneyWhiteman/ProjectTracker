@@ -23,6 +23,13 @@ PROGRAM_SQL =   """CREATE TABLE IF NOT EXISTS Programs (
                     FOREIGN KEY (projectID) REFERENCES Projects(id)
                 );"""
 
+EXCULDED_SQL =  """CREATE TABLE IF NOT EXISTS Excluded (
+                    id Integer PRIMARY KEY NOT NULL,
+                    name text NOT NULL,
+                    projectID Integer NOT NULL,
+                    FOREIGN KEY (projectID) REFERENCES Projects(id)
+                )"""
+
 def createConnection():
     """ create a database connection to a SQLite database """
     try:
@@ -37,7 +44,7 @@ def createTable(db, tableSQL):
         cursor = db.cursor()
         cursor.execute(tableSQL)
     except Error as e:
-        print(e)
+        print("table creation error: " + e)
 
 def setUpDatabase():
     #Connect to DB (create if it doesn't exist)
@@ -47,6 +54,8 @@ def setUpDatabase():
         createTable(conn, PROJECT_SQL)
         #create Program DB
         createTable(conn, PROGRAM_SQL)
+        #create Excluded DB
+        createTable(conn, EXCULDED_SQL)
     return conn
 
 def addProject(projectName):
@@ -62,10 +71,11 @@ def addProject(projectName):
                 print("Project already exists")
             
         except Error as e:
-            print(e)
+            print("Project addition error: " + e)
         return cursor.lastrowid
 
 def addProgram(programName, projectName):
+    includeProgram(programName, projectName)
     db = createConnection()
     with db:
         cursor = db.cursor()
@@ -79,8 +89,54 @@ def addProgram(programName, projectName):
                 print("Program already exists in Project")
 
         except Error as e:
+            print("Program addition error: " + e)
+        return cursor.lastrowid
+
+def removeProgram(programName, projectName):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        try:
+            sql = "DELETE FROM Programs WHERE name=? AND projectID=?"
+
+            cursor.execute(sql, (programName, getProjectID(projectName)))
+            
+        except Error as e:
+            print("Program deletion error: " + e)
+        return cursor.lastrowid
+
+def excludeProgram(programName, projectName):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        try:
+            sql = "INSERT INTO Excluded(name, projectID) VALUES(?, ?)"
+
+            cursor.execute("SELECT * FROM Excluded WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
+            if(len(cursor.fetchall()) == 0):
+                cursor.execute(sql, (programName, getProjectID(projectName)))
+            else:
+                print("Program already exists in Excluded")
+
+        except Error as e:
             print(e)
         return cursor.lastrowid
+
+def includeProgram(programName, projectName):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        try:
+            sql = "DELETE FROM Excluded WHERE name=? AND projectID=?"
+
+            cursor.execute("SELECT * FROM Excluded WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
+            if(len(cursor.fetchall()) != 0):
+                cursor.execute(sql, (programName, getProjectID(projectName)))
+            else:
+                print("Program does not exist in Excluded")
+
+        except Error as e:
+            print("Program inclusion error: " + e)
 
 def changeActiveProject(projectName):
     db = createConnection()
@@ -151,13 +207,23 @@ def getProgramMinutes(projectName):
         cursor.execute("SELECT mins FROM Programs WHERE projectID=?", (getProjectID(projectName), ))
         return tupleToArray(cursor.fetchall())
 
-def checkProgamInProject(program, project):
+def checkProgamInProject(programName, projectName):
     db = createConnection()
     with db:
         cursor = db.cursor()
-        cursor.execute("SELECT name FROM Programs WHERE name = ? AND projectID=?", (program, getProjectID(project)))
+        cursor.execute("SELECT name FROM Programs WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
         row = cursor.fetchall()
         return len(row) > 0 
+
+def getExcludedList(projectName):
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        cursor.execute("SELECT name FROM Excluded WHERE projectID=?", (getProjectID(projectName),))
+        return tupleToArray(cursor.fetchall())
+
+def isExcluded(programName, projectName):
+    return programName in getExcludedList(projectName)
 
 def tupleToArray(tup):
     arr = []
