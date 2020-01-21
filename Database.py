@@ -225,6 +225,20 @@ def getExcludedList(projectName):
 def isExcluded(programName, projectName):
     return programName in getExcludedList(projectName)
 
+def createExportData(projectName):
+    '''Creates a CSV string of the data for the Project Name to be exported as a file
+
+    projectName -> Name of the project to create export data of
+
+    return -> CSV string descrining data
+    '''
+    db = createConnection()
+    with db:
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM Programs WHERE projectID=?", (getProjectID(projectName),))
+        print(cursor.fetchall)
+
+
 def tupleToArray(tup):
     arr = []
     for t in tup:

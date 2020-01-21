@@ -4,6 +4,7 @@
 import PyQt5
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIcon
+from PyQt5.QtChart import QChart, QChartView, QLineSeries
 
 import win32gui as w
 import win32process
@@ -23,7 +24,6 @@ currentWindow = ""
 currentProject = ""
 currentWindowTimer = 0
 
-trayIcon = None
 window = None
 app = None
 
@@ -112,15 +112,21 @@ class MainWindow(QWidget):
         self.programTable.setRowCount(len(programs))
         self.programTable.setColumnCount(2)
 
+        self.programTable.horizontalHeader().setStretchLastSection(True)
+        self.programTable.setHorizontalHeaderLabels(["Program", "Minutes"])
+
         for i in range(len(programs)):
             self.programTable.setItem(i, 0, QTableWidgetItem(programs[i]))
-            self.programTable.setItem(i, 1, QTableWidgetItem(str(mins[i])))
+            self.programTable.setItem(i, 1, QTableWidgetItem(str("{0:.2f}".format(mins[i]))))
 
     def populateExcludedTable(self):
         programs = DB.getExcludedList(DB.getActiveProjectName())
 
         self.excludedTable.setRowCount(len(programs))
         self.excludedTable.setColumnCount(1)
+
+        self.excludedTable.horizontalHeader().setStretchLastSection(True)
+        self.excludedTable.setHorizontalHeaderLabels(["Program"])
 
         for i in range(len(programs)):
             self.excludedTable.setItem(i, 0, QTableWidgetItem(programs[i]))
@@ -164,13 +170,6 @@ DB.setUpDatabase()
 DB.setUpTables()
 
 
-
-def initSystemTray(app):
-    global trayIcon
-    trayIcon = QSystemTrayIcon(QIcon("./assets/icon.png"), app)
-    trayIcon.messageClicked.connect(trayMessageClicked)
-    trayIcon.show()
-
 def getActiveWindowName():
     #Gets and returns the name of the currently active window
     return w.GetWindowText(w.GetForegroundWindow())
@@ -196,47 +195,35 @@ def getActiveWindow():
 
     print(name)
 
-def main():
-    global running
-    global trayIcon
-    global window
-    global app
-    global currentProject
+def showAddProgramPopup(currentWindow, currentProject):
 
-    currentProject = DB.getActiveProjectName()
+    msgBox = QMessageBox();
 
-    if(currentProject != None):
-        print("Current Project: " + currentProject)
+    title = "Add " + currentWindow + " to " + currentProject + "?"
+    message = "Would you like to start tracking " + currentWindow + " in your \"" + currentProject + "\" project?"
 
-    #print("Database:")
-    #for project in DB.getProjectNames():
-    #    print("Project: " + project)
-    #    for program in DB.getProgramNames(project):
-    #        print("\tProgram: " + program)
+    msgBox.setWindowTitle(title)
+    msgBox.setWindowIcon(QIcon("./assets/icon.png"))
+    msgBox.setIcon(QMessageBox.Question)
+    msgBox.setText(message)
 
-    pUpdate = threading.Thread(name="programUpdate", target=programUpdate)
-    pUpdate.start()
+    msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+    msgBox.setDefaultButton(QMessageBox.Yes)
 
-    app = QApplication([])
-    window = MainWindow()
-    window.show()
+    msgBox.buttonClicked.connect(addProgramPopupClicked)
 
-    initSystemTray(app)
-    
-    app.exec_()
+    x = msgBox.exec_()
 
-
-    while running:
-        window.show()
-
-def displayNotification(title, message):
-    global trayIcon
-    trayIcon.showMessage(title, message, QIcon("./assets/icon.png"))
-
-def trayMessageClicked():
-    print("Adding " + currentWindow + " to " + currentProject)
-    DB.addProgram(currentWindow, currentProject)
-    window.populateProgramTable()
+def addProgramPopupClicked(button):
+    print(button)
+    if(button == "Yes"):
+        print("Adding " + currentWindow + " to " + currentProject)
+        DB.addProgram(currentWindow, currentProject)
+        window.populateProgramTable()
+    else:
+        print("Excluding " + currentWindow + " from " + currentProject)
+        DB.excludeProgram(currentWindow, currentProject)
+        window.populateExcludedTable()
 
 def programUpdate():
     #Function runs on a thread, constantly updates the number of seconds in the current project
@@ -257,9 +244,7 @@ def programUpdate():
                 if(not DB.checkProgamInProject(currentWindow, currentProject) and currentWindow not in Exclusion.excludedPrograms and not DB.isExcluded(currentWindow, currentProject)):
                     #Current program being used is not in the current project
                     #draw pop-up to add it
-                    DB.excludeProgram(currentWindow, currentProject)
-                    displayNotification("Add " + currentWindow + " to " + currentProject + "?", "Would you like to start tracking " + currentWindow + " in your \"" + currentProject + "\" project?")
-            print(currentProject, currentWindow)
+                    showAddProgramPopup(currentWindow, currentProject)
             time.sleep(1)
             currentWindowTimer += 1
             if(currentWindowTimer >= 60):
@@ -267,6 +252,36 @@ def programUpdate():
                 currentWindowTimer = 1
             
 
-if(__name__ == "__main__"):
 
+def main():
+    global running
+    global window
+    global app
+    global currentProject
+
+    currentProject = DB.getActiveProjectName()
+
+    if(currentProject != None):
+        print("Current Project: " + currentProject)
+
+    #print("Database:")
+    #for project in DB.getProjectNames():
+    #    print("Project: " + project)
+    #    for program in DB.getProgramNames(project):
+    #        print("\tProgram: " + program)
+
+    pUpdate = threading.Thread(name="programUpdate", target=programUpdate)
+    pUpdate.start()
+    
+    app = QApplication([])
+    window = MainWindow()
+    window.show()
+    
+    app.exec_()
+
+
+    while running:
+        window.show()
+
+if(__name__ == "__main__"):
     main()
