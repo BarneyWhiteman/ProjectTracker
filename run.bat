@@ -1,4 +1,4 @@
 :start
-python Tracker.py
+python Controller.py
 pause
 goto start

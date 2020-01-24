@@ -5,6 +5,8 @@ import os
 import sqlite3
 from sqlite3 import Error
 
+import datetime
+
 #Database set up
 
 DATABASE = "data/Projects.db"
@@ -18,7 +20,8 @@ PROJECT_SQL =   """CREATE TABLE IF NOT EXISTS Projects (
 PROGRAM_SQL =   """CREATE TABLE IF NOT EXISTS Programs (
                     id Integer PRIMARY KEY NOT NULL,
                     name text NOT NULL,
-                    mins Decimal,
+                    startTime timestamp,
+                    endTime timestamp,
                     projectID Integer NOT NULL,
                     FOREIGN KEY (projectID) REFERENCES Projects(id)
                 );"""
@@ -67,27 +70,23 @@ def addProject(projectName):
             cursor.execute("SELECT * FROM Projects WHERE name=?", (projectName, ))
             if(len(cursor.fetchall()) == 0):
                 cursor.execute(sql, (projectName,))
+                db.commit()
             else:
                 print("Project already exists")
-            
         except Error as e:
             print("Project addition error: " + e)
         return cursor.lastrowid
 
-def addProgram(programName, projectName):
+def addProgram(programName, projectName, startTime, endTime):
     includeProgram(programName, projectName)
     db = createConnection()
     with db:
         cursor = db.cursor()
         try:
-            sql = "INSERT INTO Programs(name, mins, projectID) VALUES(?, ?, ?)"
-
-            cursor.execute("SELECT * FROM Programs WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
-            if(len(cursor.fetchall()) == 0):
-                cursor.execute(sql, (programName, 0, getProjectID(projectName)))
-            else:
-                print("Program already exists in Project")
-
+            sql = "INSERT INTO Programs(name, projectID, startTime, endTime) VALUES(?, ?, ?, ?)"
+            
+            cursor.execute(sql, (programName, getProjectID(projectName), startTime, endTime))
+            db.commit()
         except Error as e:
             print("Program addition error: " + e)
         return cursor.lastrowid
@@ -100,7 +99,7 @@ def removeProgram(programName, projectName):
             sql = "DELETE FROM Programs WHERE name=? AND projectID=?"
 
             cursor.execute(sql, (programName, getProjectID(projectName)))
-            
+            db.commit()
         except Error as e:
             print("Program deletion error: " + e)
         return cursor.lastrowid
@@ -115,9 +114,9 @@ def excludeProgram(programName, projectName):
             cursor.execute("SELECT * FROM Excluded WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
             if(len(cursor.fetchall()) == 0):
                 cursor.execute(sql, (programName, getProjectID(projectName)))
+                db.commit()
             else:
                 print("Program already exists in Excluded")
-
         except Error as e:
             print(e)
         return cursor.lastrowid
@@ -132,11 +131,12 @@ def includeProgram(programName, projectName):
             cursor.execute("SELECT * FROM Excluded WHERE name=? AND projectID=?", (programName, getProjectID(projectName)))
             if(len(cursor.fetchall()) != 0):
                 cursor.execute(sql, (programName, getProjectID(projectName)))
+                db.commit()
             else:
                 print("Program does not exist in Excluded")
-
         except Error as e:
             print("Program inclusion error: " + e)
+        
 
 def changeActiveProject(projectName):
     db = createConnection()
@@ -167,24 +167,13 @@ def getProjectID(projectName):
             return row
         return row[0]
 
-def updateProgram(projectName, programName, mins):
-    db = createConnection()
-    with db:
-        cursor = db.cursor()
-        
-        sql = "SELECT id FROM Programs WHERE name = ? AND projectID = ?"
-        cursor.execute(sql, (programName, getProjectID(projectName)))
-        row = cursor.fetchone()
-        if(row != None):
-            sql = "UPDATE Programs SET mins = mins + ? WHERE name = ? AND projectID = ?"
-            cursor.execute(sql, (mins, programName, getProjectID(projectName)))
 
 def setUpTables():
     addProject("ProjectTracker")
-    addProgram("Visual Studio Code", "ProjectTracker")
+    includeProgram("Visual Studio Code", "ProjectTracker")
     
     addProject("Unexpected Orcs")
-    addProgram("IntelliJ IDEA", "Unexpected Orcs")
+    includeProgram("IntelliJ IDEA", "Unexpected Orcs")
 
 def getProjectNames():
     db = createConnection()

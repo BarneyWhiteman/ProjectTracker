@@ -5,11 +5,22 @@ import Exclusion
 import win32gui as w
 import win32process
 
+import datetime
 
 import threading
 import sys
 import time
 import psutil
+
+
+#Globals
+running = True
+prevWindow = ""
+currentWindow = ""
+currentProject = ""
+controller = None
+startTime = None
+endTime = None
 
 class Controller:
 
@@ -18,7 +29,9 @@ class Controller:
         DB.setUpDatabase()
         DB.setUpTables()
 
-        self.currentProject = DB.getActiveProjectName();    
+        self.currentProject = DB.getActiveProjectName();
+        global currentProject
+        currentProject = self.currentProject
         
         self.gui = GUI.createApp(self)
 
@@ -68,16 +81,13 @@ class Controller:
 
     def projectSelectionChange(i):
         print("Current selection: (", i, ")", Controller.getProjects()[i])
+        
+        self.currentProject = DB.getActiveProjectName();
+        global currentProject
+        currentProject = self.currentProject
 
-
-
-#Globals
-running = True
-prevWindow = ""
-currentWindow = ""
-currentProject = ""
-currentWindowTimer = 0
-
+    def showAddProgramPopup(self, currentWindow, currentProject):
+        print("Add " + currentWindow + " to " + currentProject + "? y/n")
 
 def getActiveWindowName():
     #Gets and returns the name of the currently active window
@@ -110,7 +120,11 @@ def programUpdate():
     global prevWindow
     global currentWindow
     global currentProject
-    global currentWindowTimer
+    global controller
+    global startTime
+    global endTime
+
+    startTime = datetime.datetime.now()
 
     while running:
         if(currentProject != None and currentProject != ""):
@@ -118,20 +132,26 @@ def programUpdate():
             currentWindow = getActiveWindowType()
             #getActiveWindow()
             if(not(currentWindow == prevWindow)):
-                DB.updateProgram(currentProject, prevWindow, currentWindowTimer/60)
-                currentWindowTimer = 0
+
+                endTime = datetime.datetime.now()
+
+                DB.addProgram(prevWindow, currentProject, startTime, endTime)
+
+                startTime = datetime.datetime.now()
+
                 if(not DB.checkProgamInProject(currentWindow, currentProject) and currentWindow not in Exclusion.excludedPrograms and not DB.isExcluded(currentWindow, currentProject)):
                     #Current program being used is not in the current project
                     #draw pop-up to add it
-                    showAddProgramPopup(currentWindow, currentProject)
+                    controller.showAddProgramPopup(currentWindow, currentProject)
             time.sleep(1)
-            currentWindowTimer += 1
-            if(currentWindowTimer >= 60):
-                DB.updateProgram(currentProject, currentWindow, 1)
-                currentWindowTimer = 1
 
 def main():
+    global controller
     controller = Controller()
+
+    
+    pUpdate = threading.Thread(name="programUpdate", target=programUpdate)
+    pUpdate.start()
 
 if(__name__ == "__main__"):
     main()

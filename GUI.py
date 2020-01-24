@@ -62,7 +62,10 @@ class ProjectSelect(ttk.Frame):
         Frame.__init__(self, parent)
 
         label = Label(self, text = "Current Project:")
-        label.pack(fill = BOTH, expand = 1)
+        label.pack()
+
+        select = ttk.Combobox(self, values = self.parent.controller.getProjects())
+        select.pack()
 
 class ProjectTabs(ttk.Frame):
     def __init__(self, parent):
